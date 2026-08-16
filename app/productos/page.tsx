@@ -1,153 +1,133 @@
 "use client";
-import { useEffect, useState } from "react";
-
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { UseProducts } from "@/hooks/use-products";
+import { UseCreateProduct } from "@/hooks/use-create-product";
+import { UseDeleteProduct } from "@/hooks/use-delete-product";
+import { UseUpdateProducts } from "@/hooks/use-update-products";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { productSchema } from "@/types/products";
 interface Productos {
-  id: number;
+  id?: number;
   nombre: string;
   precio: number;
   stock: number;
 }
 
 export default function Productos() {
+  const {
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<Productos>({
+    resolver: zodResolver(productSchema),
+  });
+  const { data: productos, isLoading, error } = UseProducts();
+  const deleteProduct = UseDeleteProduct();
+  const updateProduct = UseUpdateProducts();
+  const createProduct = UseCreateProduct();
+
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [productos, setProductos] = useState<Productos[]>([]);
-  const [nombre, setNombre] = useState("");
-  const [precio, setPrecio] = useState("");
-  const [stock, setStock] = useState("");
-  const [mensaje, setMensaje] = useState("");
-  async function cargarProductos() {
-    const response = await fetch("/api/productos");
-    const data = await response.json();
-    setProductos(data);
-  }
 
-  useEffect(() => {
-    //preguntar a la ia si es correcto hacer esto, ya que no se puede usar async en useEffect
-    (async () => {
-      await cargarProductos();
-    })();
-  }, []);
-
-  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const producto = {
-      nombre,
-      precio: parseFloat(precio),
-      stock: parseInt(stock),
-    };
-    let response;
+  const onSubmit = async (data: Productos) => {
     if (editandoId === null) {
-      response = await fetch("/api/productos", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(producto),
-      });
+      await createProduct.mutateAsync(data);
     } else {
-      response = await fetch(`/api/productos/${editandoId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(producto),
+      await updateProduct.mutateAsync({
+        id: editandoId,
+        producto: data,
       });
+      reset();
     }
-    const nuevoProducto = await response.json();
-    if (!response.ok) {
-      console.error("Error al agregar producto:", nuevoProducto);
-      return;
-    }
-    setMensaje("producto creado correctamente");
-    setNombre("");
-    setPrecio("");
-    setStock("");
+    reset({ nombre: "", precio: 0, stock: 0 });
     setEditandoId(null);
-    await cargarProductos();
-  }
-  const eliminarProducto = async (id: number) => {
-    const response = await fetch(`/api/productos/${id}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      console.error("Error al eliminar producto");
-      return;
-    }
-    setMensaje("producto eliminado correctamente");
-    await cargarProductos();
-  };
-  const editarProducto = async (producto: Productos) => {
-    setEditandoId(producto.id);
-    setNombre(producto.nombre);
-    setPrecio(producto.precio.toString());
-    setStock(producto.stock.toString());
   };
 
+  const editarProducto = (producto: Productos & { id: number }) => {
+    setEditandoId(producto.id);
+    reset({
+      nombre: producto.nombre,
+      precio: producto.precio,
+      stock: producto.stock,
+    });
+  };
+
+  const eliminarProducto = async (id: number) => {
+    await deleteProduct.mutateAsync(id);
+  };
+  if (isLoading) return <p>Cargando...</p>;
+  if (error)
+    return (
+      <p className="text-red-500 font-bold">
+        Ha ocurrido un error...Pro fravor espere
+      </p>
+    );
   return (
     <div className="container mx-auto p-4 border border-gray-500">
       <div className="">
         <div className="border border-gray-200 p-4 rounded-md">
           <h1 className="text-lg font-bold">Agregar producto</h1>
-          <form onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-2 mb-4">
-              <label htmlFor="nombre">Nombre:</label>
-              <input
-                className="border border-gray-300 p-2 rounded-md"
-                value={nombre}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setNombre(e.target.value)
-                }
-                type="text"
-                id="nombre"
-                name="nombre"
-                required
-              />
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <div className="flex flex-col gap-2 my-4">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="nombre">Nombre:</label>
+                <input
+                  className="border border-gray-300 p-2 rounded-md"
+                  type="text"
+                  id="nombre"
+                  {...register("nombre")}
+                />
+                {errors.nombre && (
+                  <p className="text-red-500">{errors.nombre.message}</p>
+                )}
+              </div>
             </div>
             <div className="flex flex-col gap-2 mb-4">
-              <label htmlFor="precio">Precio:</label>
-              <input
-                className="border border-gray-300 p-2 rounded-md"
-                value={precio}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setPrecio(e.target.value)
-                }
-                type="text"
-                id="precio"
-                name="precio"
-                required
-              />
+              <div className="flex flex-col gap-2">
+                <label htmlFor="precio">Precio:</label>
+                <input
+                  className="border border-gray-300 p-2 rounded-md"
+                  type="number"
+                  id="precio"
+                  {...register("precio", { valueAsNumber: true })}
+                />
+                {errors.precio && (
+                  <p className="text-red-500">{errors.precio.message}</p>
+                )}
+              </div>
             </div>
             <div className="flex flex-col gap-2 mb-4">
-              <label htmlFor="stock">Stock:</label>
-              <input
-                className="border border-gray-300 p-2 rounded-md"
-                value={stock}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setStock(e.target.value)
-                }
-                type="text"
-                id="stock"
-                name="stock"
-                required
-              />
+              <div className="flex flex-col gap-2">
+                <label htmlFor="stock">Stock:</label>
+                <input
+                  className="border border-gray-300 p-2 rounded-md"
+                  type="number"
+                  id="stock"
+                  {...register("stock", { valueAsNumber: true })}
+                />
+                {errors.stock && (
+                  <p className="text-red-500">{errors.stock.message}</p>
+                )}
+              </div>
             </div>
             <div>
               <button
                 type="submit"
                 className="bg-blue-500 text-white p-2 rounded-md"
+                disabled={createProduct.isPending || updateProduct.isPending}
               >
                 {editandoId === null
                   ? "Agregar producto"
                   : "Actualizar producto"}
               </button>
             </div>
-            {mensaje && <p>{mensaje}</p>}
           </form>
         </div>
         <div>
           <h1 className="text-lg font-bold text-center">Lista de productos</h1>
           <div className="flex flex-wrap gap-4 mt-4">
-            {productos.map((producto) => (
+            {(productos ?? []).map((producto) => (
               <div
                 className="border flex-1  border-gray-300 p-4 rounded-md"
                 key={producto.id}
